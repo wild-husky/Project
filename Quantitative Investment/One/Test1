@@ -1,0 +1,162 @@
+import pandas as pd
+import numpy as np
+import os
+import datetime
+import time
+from dateutil.relativedelta import relativedelta
+import re
+# import matplotlib.pyplot as plt
+# from sklearn.linear_model import LinearRegression as LR
+# from xgboost import XGBRegressor as XGBR
+#all row
+from IPython.core.interactiveshell import InteractiveShell
+InteractiveShell.ast_node_interactivity = "all"
+
+class BuyPlan(object):
+    
+    
+    def __init__(self, OriginPriceSheet, OriginMoney, BuyDate, SellDate, OriginBuyList):
+        
+        self.OriginPriceSheet = pd.DataFrame(OriginPriceSheet)
+        self.OriginMoney = float(OriginMoney)
+        self.BuyDate = str(BuyDate)
+        self.SellDate = str(SellDate)
+        self.OriginBuyList = OriginBuyList.tolist()
+        
+    def DateIndex(self, WorkDayList):
+
+        '''脱敏'''
+        #(USE to:)return process the date only
+        
+        return DateIndexList
+        
+        
+    def MonthlyMoney(self, PriceStepSheet, QuantityStepSheet):
+        
+        QuantityStepSheet.index = PriceStepSheet.index
+        MoneyStepSheet = PriceStepSheet*QuantityStepSheet
+    
+        return MoneyStepSheet
+
+    
+    def StockFilter(self, LastMoneyStepSheet, NowMoneyStepSheet, BuyList, PriceStepSheet):
+        
+        MoneyTotal = float(sum(NowMoneyStepSheet.sum()))
+        PercentNumber = len(BuyList)//10
+        MoneyEach = float(MoneyTotal/PercentNumber)
+        ProfitStepSheet = NowMoneyStepSheet - LastMoneyStepSheet #Profit by |Money| ? or by |Price| ?
+        ProfitStepSheet_sort = ProfitStepSheet.sort_values(by = ProfitStepSheet.index[0], axis = 1, ascending = True)
+        NewBuyList = ProfitStepSheet_sort.columns[0:PercentNumber-1]
+        NewPriceStepSheet = PriceStepSheet.loc[:,list(NewBuyList)]
+        QuantityStepSheet = MoneyEach/NewPriceStepSheet
+        LastMoneyStepSheet_Buy = self.MonthlyMoney(PriceStepSheet = NewPriceStepSheet,
+                                                   QuantityStepSheet = QuantityStepSheet
+                                                  )
+                # Did we need to refer a hand equal to 100 ?
+#         QuantitySheet = MoneyEach/(PriceStepSheet*100) if something should been filter
+        
+        return NewBuyList, NewPriceStepSheet, QuantityStepSheet, LastMoneyStepSheet_Buy
+
+    
+    def Run(self):
+        #
+        OriginMoney = self.OriginMoney
+        BuyDate = self.BuyDate
+        SellDate = self.SellDate
+        OriginBuyList = self.OriginBuyList
+        OriginPriceSheet = self.OriginPriceSheet
+        #
+        BuyDate_Expectation = pd.to_datetime(BuyDate,format = "%Y-%m-%d")
+        BuyDate_Actuality = pd.to_datetime(OriginPriceSheet.index[0],format = "%Y-%m-%d")
+        SellDate_Expectation = pd.to_datetime(SellDate,format = "%Y-%m-%d")
+        SellDate_Actuality = pd.to_datetime(OriginPriceSheet.index[-1],format = "%Y-%m-%d")
+        if ((BuyDate_Expectation < SellDate_Expectation) and
+            (BuyDate_Expectation < SellDate_Actuality) and
+            (BuyDate_Actuality < SellDate_Expectation)
+           ):
+            if BuyDate_Expectation < BuyDate_Actuality:
+                BuyDate = BuyDate_Actuality.strftime("%Y-%m-%d")
+                print("Buy Date need to equal to:", BuyDate)
+            else:
+                BuyDate = BuyDate.strftime("%Y-%m-%d")
+        else:
+            print("Please Check your Date of data again!!")
+        #
+        PriceSheet_BuyList = OriginPriceSheet.loc[:, list(OriginBuyList)]
+        PriceSheet_BuyDate = pd.DataFrame(PriceSheet_BuyList.loc[BuyDate, :]).T
+        MoneyEach_BuyDate = OriginMoney/len(list(OriginBuyList))
+        QuantitySheet_BuyDate = MoneyEach_BuyDate/PriceSheet_BuyDate
+        MoneySheet_BuyDate = self.MonthlyMoney(PriceStepSheet = PriceSheet_BuyDate,
+                                               QuantityStepSheet = QuantitySheet_BuyDate
+                                              )
+        #
+        LastMoneySheet_Step = MoneySheet_BuyDate.copy()
+        BuyList_Step = OriginBuyList.copy()
+        QuantitySheet_Step = QuantitySheet_BuyDate.copy()
+        # Historical data collect
+        MoneySheet = LastMoneySheet_Step.copy()
+        BuySheet = pd.DataFrame(data = str(BuyList_Step), index = [BuyDate], columns = ["NameList"])
+        PriceSheet = PriceSheet_BuyDate.copy()
+        QuantitySheet = QuantitySheet_Step.copy()
+        #
+        DateList = list(OriginPriceSheet.index)
+        DateIndexList = self.DateIndex(WorkDayList = DateList)
+        for NowDate in DateIndexList:
+            if len(BuyList_Step) < 10:
+                return MoneySheet, BuySheet, PriceSheet, QuantitySheet
+            else:
+                OriginPriceSheet_Step = pd.DataFrame(OriginPriceSheet.loc[NowDate,BuyList_Step]).T
+                NowMoneySheet_Step = self.MonthlyMoney(PriceStepSheet = OriginPriceSheet_Step,#100
+                                                       QuantityStepSheet = QuantitySheet_Step
+                                                      )
+                LastMoneySheet_Step.index = NowMoneySheet_Step.index
+                NewBuyList_Step, NewPriceSheet_Step, NewQuantitySheet_Step ,LastMoneyStepSheet_NewBuy = self.StockFilter(LastMoneyStepSheet = LastMoneySheet_Step,
+                                                                                                                          NowMoneyStepSheet = NowMoneySheet_Step,
+                                                                                                                          BuyList = BuyList_Step, 
+                                                                                                                          PriceStepSheet = OriginPriceSheet_Step
+                                                                                                                         )
+                BuyList_Step = NewBuyList_Step.copy()
+                PriceSheet_Step = NewPriceSheet_Step.copy()
+                QuantitySheet_Step = NewQuantitySheet_Step.copy()
+                LastMoneySheet_Step = LastMoneyStepSheet_NewBuy.copy()
+                BuySheet_Step = pd.DataFrame(data = str(BuyList_Step), index = [NowDate], columns = ["NameList"])
+                # Historical data collect
+                MoneySheet = MoneySheet.append(NowMoneySheet_Step)
+                BuySheet = BuySheet.append(BuySheet_Step)
+                PriceSheet = PriceSheet.append(PriceSheet_Step)
+                QuantitySheet = QuantitySheet.append(QuantitySheet_Step)
+
+        return MoneySheet, BuySheet, PriceSheet, QuantitySheet
+            
+if __name__ == "__main__":
+    
+    #
+    PriceSheet_io_input = input("Please Inupt your address of the PriceSheet:")
+    OriginMoney_input = input("Please Input your OriginMoney:")
+    BuyDate_input = input("Please Input your BuyDate (format as 1000-01-01):")
+    SellDate_input = input("Please Input your SellDate (format as 1000-01-01):")
+    #
+    PriceSheet_Origin = pd.read_excel(io = PriceSheet_io_input, header = 6)
+    PriceSheet_Origin.index = PriceSheet_Origin["Date"].apply(lambda x : x.strftime("%Y-%m-%d"))
+    PriceSheet_Origin = PriceSheet_Origin.drop(columns = PriceSheet_Origin.columns[0:4])
+    PriceSheet_Origin = PriceSheet_Origin.fillna(method = "ffill")
+    PriceSheet_Origin = PriceSheet_Origin.fillna(method = "bfill")
+    PriceSheet_Origin = PriceSheet_Origin.copy()
+    #
+    All_In = str(input("Do you want to all in the Market?(Y/N)"))
+    if All_In in ["Y","YES","Yes","yes"]:
+        BuyList_input = PriceSheet_Origin.columns
+    else:
+        BuyList_input = input("Please Input your BuyList")
+    #
+    Test1 = BuyPlan(OriginPriceSheet = PriceSheet_Origin,
+                    OriginMoney = OriginMoney_input,
+                    BuyDate = BuyDate_input,
+                    SellDate = SellDate_input,
+                    OriginBuyList = BuyList_input
+                   )
+    Money, Buy, Price, Quantity = Test1.Run()
+    FinalMoney = Money.iloc[-1,:].sum()
+    FinalDate = pd.DataFrame(Money.iloc[-1,:]).T.index[0]
+    print("FinalMoney:", FinalMoney)
+    print("FinalDate", FinalDate)
