@@ -11,3 +11,52 @@ from sklearn.linear_model import LinearRegression as LR
 #all row
 from IPython.core.interactiveshell import InteractiveShell
 InteractiveShell.ast_node_interactivity = "all"
+
+
+class ModelIdentify(object):
+    
+    def __init__(self, SheetPath):
+        self
+        
+        
+    def SampleFilter(self, Sheet):
+        i = 0
+        while str(Sheet[Sheet.columns[i]].dtype) != "float64":
+            j = Sheet.columns[i]
+            k = Sheet.columns[i+1]
+            i += 1
+            if i > 30:
+                break
+        LabelSheet = Sheet.loc[:,:j]
+        FeatureSheet = Sheet.loc[:,k:]
+
+        return LabelSheet,FeatureSheet
+
+
+    def PlotRun(self, io):
+
+        SheetOnce = pd.read_csv(io, header = None, prefix = "column")
+        SheetOneLabel, SheetOneFeature = self.SampleFilter(SheetOnce)
+        print(SheetOneFeature.T.plot(kind = "line"))  
+        
+        
+    def ReadDataFile(self):
+        
+        Path = self.SheetPath
+        SheetLabel = "-"
+        SheetFeature = "-"
+        for f,g,h in os.walk(Path):
+            for i in h:
+                io = str(f+"\\"+i)
+                SheetOnce = pd.read_csv(io, header = None, prefix = "Day")
+                SheetOneLabel, SheetOneFeature = self.SampleFilter(SheetOnce)
+                if (SheetLable == "-")or(Sheet == "-"):
+                    Sheetlabel = SheetOneLabel.copy()
+                    SheetFeature = SheetOneFeature.copy()
+                else:
+                    Sheetlabel = Sheetlabel.append(SheetOneLabel)
+                    SheetFeature = SheetFeature.append(SheetOneFeature)
+        SheetlabelAdd = Sheetlabel.T
+        SheetFeatureAdd = SheetFeature.T
+        
+        return SheetlabelAdd, SheetFeatureAdd
